@@ -37,7 +37,7 @@ object Monads {
     c <- charFuture
   } yield (n, c)
 
-  /*
+  /**
      Pattern
      - wrapping a value into a monadic value
      - the flatMap mechanism
@@ -56,7 +56,9 @@ object Monads {
   import cats.instances.option._ // implicit Monad[Option]
   val optionMonad = Monad[Option]
   val anOption = optionMonad.pure(4) // Option(4) == Some(4)
-  val aTransformedOption = optionMonad.flatMap(anOption)(x => if (x % 3 == 0) Some(x + 1) else None) // None
+  val aTransformedOption = optionMonad.flatMap(anOption)(x =>
+    if (x % 3 == 0) Some(x + 1)
+    else None) // None
 
   import cats.instances.list._
   val listMonad = Monad[List]
@@ -99,8 +101,9 @@ object Monads {
 
   // TODO 3: implement the map method in MyMonad
   // Monads extend Functors
-  val oneOptionMapped = Monad[Option].map(Option(2))(_ + 1)
   import cats.syntax.functor._ // map is here
+
+  val oneOptionMapped = Monad[Option].map(Option(2))(_ + 1)
   val oneOptionMapped2 = oneOption.map(_ + 2)
   // for-comprehensions
   val composedOptionFor = for {
