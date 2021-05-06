@@ -74,6 +74,7 @@ object CustomMonads {
         B1234
 
        */
+
       def tailRec(todo: List[Tree[Either[A, B]]], expanded: Set[Tree[Either[A, B]]], done: List[Tree[B]]): Tree[B] =
         if (todo.isEmpty) done.head
         else todo.head match {
