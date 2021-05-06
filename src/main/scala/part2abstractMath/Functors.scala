@@ -32,7 +32,8 @@ object Functors {
   def do10xTry(attempt: Try[Int]): Try[Int] = attempt.map(_ * 10)
 
   // generalize
-  def do10x[F[_]](container: F[Int])(implicit functor: Functor[F]): F[Int] = functor.map(container)(_ * 10)
+  import cats.syntax.functor._
+  def do10x[F[_] : Functor](container: F[Int]): F[Int] = container.map(_ * 10)
 
   // TODO 1: define your own functor for a binary tree
   // hint: define an object which extends Functor[Tree]
