@@ -47,8 +47,8 @@ object Monads {
   trait MyMonad[M[_]] {
     def pure[A](value: A): M[A]
     def flatMap[A, B](ma: M[A])(f: A => M[B]): M[B]
-    def map[A, B](ma: M[A])(f: A => B): M[B] =
-      flatMap(ma)(x => pure(f(x)))
+    def map[A, B](ma: M[A])(f: A => B): M[B] = flatMap(ma)(a => pure[B](f(a)))
+//      flatMap(ma)(x => pure(f(x)))
   }
 
   // Cats Monad
@@ -64,6 +64,13 @@ object Monads {
   val aTransformedList = listMonad.flatMap(aList)(x => List(x, x + 1)) // List(4, 5)
 
   // TODO 2: use a Monad[Future]
+  import cats.instances.future.catsStdInstancesForFuture // ExecutionContext in scope
+  val fMonad: Monad[Future] = Monad[Future]
+  val future: Future[Int] = fMonad.pure(21)
+  val transformedFuture: Future[Int] = future.flatMap(future => Future(future + 11))
+  val atransformedFuture: Future[Int] = Monad[Future].flatMap(future)(x => Future{x + 11})
+
+
   import cats.instances.future._
   val futureMonad = Monad[Future] // requires an implicit ExecutionContext
   val aFuture = futureMonad.pure(43)
@@ -75,12 +82,16 @@ object Monads {
   def getPairsFuture(number: Future[Int], char: Future[Char]): Future[(Int, Char)] = number.flatMap(n => char.map(c => (n, c)))
 
   // generalize
-  def getPairs[M[_], A, B](ma: M[A], mb: M[B])(implicit monad: Monad[M]): M[(A, B)] =
-    monad.flatMap(ma)(a => monad.map(mb)(b => (a, b)))
+  import cats.syntax.flatMap._
+  import cats.syntax.functor._ // .map is here
+  def getPairs[M[_] : Monad, A, B](ma: M[A], mb: M[B])/*(implicit monad: Monad[M])*/: M[(A, B)] =
+//    monad.flatMap(ma)(a => monad.map(mb)(b => (a, b)))
+  ma.flatMap(a => mb.map(b => (a, b)))
 
   // extension methods - weirder imports - pure, flatMap
-  import cats.syntax.applicative._ // pure is here
+  import cats.syntax.applicative.catsSyntaxApplicativeId // pure is here
   val oneOption = 1.pure[Option] // implicit Monad[Option] will be used => Some(1)
+  val oneOption2 = Monad[Option].pure(1)
   val oneList = 1.pure[List] // List(1)
 
   import cats.syntax.flatMap._ // flatMap is here
