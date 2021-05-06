@@ -32,6 +32,10 @@ object Semigroups {
   val aCombinedExpense = Expense(4, 80) |+| Expense(56, 46)
 
   // TODO 2: implement reduceThings2 with the |+|
+  def reduceThings2Before[T](list: List[T])(implicit semigroup: Semigroup[T]): T = list.reduce((a, b) =>
+    semigroup.combine(a, b)
+//    a |+| b
+  )
   def reduceThings2[T : Semigroup](list: List[T]): T = list.reduce(_ |+| _)
 
   def main(args: Array[String]): Unit = {
