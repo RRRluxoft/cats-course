@@ -1,5 +1,9 @@
 package part2abstractMath
 
+import java.util.concurrent.Executors
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success, Try}
+
 object UsingMonads {
 
   import cats.Monad
@@ -14,24 +18,30 @@ object UsingMonads {
   val aManualEither: Either[String, Int] = Right(42)
   type LoadingOr[T] = Either[String, T]
   type ErrorOr[T] = Either[Throwable, T]
+
   import cats.instances.either._
   val loadingMonad = Monad[LoadingOr]
   val anEither = loadingMonad.pure(45) // LoadingOr[Int] == Right(45)
-  val aChangedLoading = loadingMonad.flatMap(anEither)(n => if (n % 2 == 0) Right(n + 1) else Left("Loading meaning of life..."))
+  val aChangedLoading = loadingMonad.flatMap(anEither)(n =>
+    if (n % 2 == 0) Right(n + 1)
+    else Left("Loading meaning of life..."))
 
   // imaginary online store
   case class OrderStatus(orderId: Long, status: String)
+
   def getOrderStatus(orderId: Long): LoadingOr[OrderStatus] =
     Right(OrderStatus(orderId, "Ready to ship"))
+
   def trackLocation(orderStatus: OrderStatus): LoadingOr[String] =
     if (orderStatus.orderId > 1000) Left("Not available yet, refreshing data...")
     else Right("Amsterdam, NL")
 
   val orderId = 457L
   val orderLocation = loadingMonad.flatMap(getOrderStatus(orderId))(orderStatus => trackLocation(orderStatus))
+
   // use extension methods
-  import cats.syntax.flatMap._
-  import cats.syntax.functor._
+  import cats.syntax.flatMap._ // flatMap
+  import cats.syntax.functor._ // map
   val orderLocationBetter: LoadingOr[String] = getOrderStatus(orderId).flatMap(orderStatus => trackLocation(orderStatus))
   val orderLocationFor: LoadingOr[String] = for {
     orderStatus <- getOrderStatus(orderId)
@@ -50,7 +60,7 @@ object UsingMonads {
     def issueRequest(connection: Connection, payload: String): M[String]
   }
 
-  def getResponse[M[_]](service: HttpService[M], payload: String)(implicit monad: Monad[M]): M[String] =
+  def getResponse[M[_]: Monad](service: HttpService[M], payload: String): M[String] =
     for {
       conn <- service.getConnection(config)
       response <- service.issueRequest(conn, payload)
@@ -88,6 +98,68 @@ object UsingMonads {
     response <- OptionHttpService.issueRequest(conn, "Hello, HTTP service")
   } yield response
 
+  import cats.instances.try_._
+  import cats.instances.option._
+  import cats.syntax.applicative._
+  import cats.syntax.flatMap._
+  object TryHttpService extends HttpService[Try] {
+    override def getConnection(cfg: Map[String, String]): Try[Connection] = {
+      val conn = for {
+        h <- cfg.get("host")
+        p <- cfg.get("port")
+      } yield Connection(h, p)
+      conn.get.pure[Try]
+    }
+
+    override def issueRequest(connection: Connection, payload: String): Try[String] =
+      if (payload.length >= 20) Failure[String](new IllegalArgumentException(s"is too long payload ${payload.length}"))
+      else Success(s"Request ($payload) has been accepted")
+  }
+
+  val responseTry = TryHttpService.getConnection(config).flatMap { conn =>
+    TryHttpService.issueRequest(conn, "Try OK from HTTP service")
+  }
+
+  import cats.instances.future._
+  import cats.syntax.applicative._
+    implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(8))
+  object FutureHttpService extends HttpService[Future] {
+    override def getConnection(cfg: Map[String, String]): Future[Connection] = {
+      val conn = for {
+        h <- cfg.get("host")
+        p <- cfg.get("port")
+      } yield Connection(h, p)
+      conn.get.pure[Future]
+    }
+
+    override def issueRequest(connection: Connection, payload: String): Future[String] =
+      if (payload.length >= 20) Future.failed[String](new IllegalArgumentException(s"is too long payload ${payload.length}"))
+      else Future.successful(s"Request ($payload) has been accepted too")
+  }
+
+  val responseFuture = FutureHttpService.getConnection(config).flatMap { conn =>
+    FutureHttpService.issueRequest(conn, "Future OK from HTTP")
+  }
+
+  import cats.instances.either._
+  object EitherHttpService extends HttpService[LoadingOr] {
+    override def getConnection(cfg: Map[String, String]): LoadingOr[Connection] = {
+      val conn = for {
+        h <- cfg.get("host")
+        p <- cfg.get("port")
+      } yield Connection(h, p)
+      conn.get.pure[LoadingOr]
+    }
+
+    override def issueRequest(connection: Connection, payload: String): LoadingOr[String] =
+      if (payload.length >= 20) Left(s"is too long payload ${payload.length}")
+      else Right(s"Request ($payload) has been accepted for Either")
+  }
+
+  val responseEither = EitherHttpService.getConnection(config).flatMap { conn =>
+    EitherHttpService.issueRequest(conn, "Either OK from HTTP")
+  }
+
   // TODO implement another HttpService with LoadingOr or ErrorOr
   object AggressiveHttpService extends HttpService[ErrorOr] {
     override def getConnection(cfg: Map[String, String]): ErrorOr[Connection] =
@@ -109,6 +181,9 @@ object UsingMonads {
 
   def main(args: Array[String]): Unit = {
     println(getResponse(OptionHttpService, "Hello Option"))
+    println(getResponse(TryHttpService, "Hello Try"))
+    getResponse(FutureHttpService, "Hello Future :)").foreach(println)
+    println(getResponse(EitherHttpService, "Hello, Either/LoadingOr here"))
     println(getResponse(AggressiveHttpService, "Hello, ErrorOr"))
   }
 }
