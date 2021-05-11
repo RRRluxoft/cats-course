@@ -10,7 +10,7 @@ object MonadTransformers {
 
   // option transformer
   import cats.data.OptionT
-  import cats.instances.list._ // fetch an implicit OptionT[List]
+  import cats.instances.list._ // fetch an implicit OptionT[List]  <<< Monad[List]
   import cats.instances.future._
 
   val listOfNumberOptions: OptionT[List, Int] = OptionT(List(Option(1), Option(2)))
@@ -67,7 +67,8 @@ object MonadTransformers {
 
   def main(args: Array[String]): Unit = {
     println(listOfTuples.value)
-    val resultFuture = generateTrafficSpikeReport("server2.rockthejvm.com", "server3.rockthejvm.com").value
+    val resultFuture: Future[Either[String, String]] =
+      generateTrafficSpikeReport("server2.rockthejvm.com", "server3.rockthejvm.com").value
     resultFuture.foreach(println)
   }
 
