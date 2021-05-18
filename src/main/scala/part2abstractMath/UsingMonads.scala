@@ -1,5 +1,7 @@
 package part2abstractMath
 
+import cats.data.OptionT
+
 import java.util.concurrent.Executors
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
@@ -98,17 +100,24 @@ object UsingMonads {
     response <- OptionHttpService.issueRequest(conn, "Hello, HTTP service")
   } yield response
 
+  // OptionT[F, A] ==> F[Option[A]]
+  // Option[A] --> Option[F[A]] || F[Option[A]] --> F[A]
+
   import cats.instances.try_._
   import cats.instances.option._
   import cats.syntax.applicative._
   import cats.syntax.flatMap._
+  import cats.syntax.functor._
   object TryHttpService extends HttpService[Try] {
     override def getConnection(cfg: Map[String, String]): Try[Connection] = {
-      val conn = for {
+      val conn: Option[Connection] = for {
         h <- cfg.get("host")
         p <- cfg.get("port")
       } yield Connection(h, p)
-      conn.get.pure[Try]
+      val tryOfOption: OptionT[Try, Connection] = OptionT.fromOption[Try](conn) // eq: OptionT(conn.pure[Try])
+      val res: Try[Connection] = //opt.flatMap(conn => Try(conn.get))
+        tryOfOption.getOrElseF( Failure(new RuntimeException("Failed HttpService[Try]...")) )
+      res
     }
 
     override def issueRequest(connection: Connection, payload: String): Try[String] =
@@ -116,25 +125,28 @@ object UsingMonads {
       else Success(s"Request ($payload) has been accepted")
   }
 
-  val responseTry = TryHttpService.getConnection(config).flatMap { conn =>
+  val responseTry: Try[String] = TryHttpService.getConnection(config).flatMap { conn =>
     TryHttpService.issueRequest(conn, "Try OK from HTTP service")
   }
 
   import cats.instances.future._
   import cats.syntax.applicative._
-    implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(8))
+  implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(8))
+
   object FutureHttpService extends HttpService[Future] {
     override def getConnection(cfg: Map[String, String]): Future[Connection] = {
-      val conn = for {
+      val conn: Option[Connection] = for {
         h <- cfg.get("host")
         p <- cfg.get("port")
       } yield Connection(h, p)
-      conn.get.pure[Future]
+      val futureOfOption: OptionT[Future, Connection] = OptionT.fromOption[Future](conn)
+      val res = futureOfOption.getOrElseF(Future.failed[Connection](new RuntimeException("Failed HttpService[Future]...")))
+      res
     }
 
     override def issueRequest(connection: Connection, payload: String): Future[String] =
       if (payload.length >= 20) Future.failed[String](new IllegalArgumentException(s"is too long payload ${payload.length}"))
-      else Future.successful(s"Request ($payload) has been accepted too")
+      else Future.successful[String](s"Request ($payload) has been accepted too")
   }
 
   val responseFuture = FutureHttpService.getConnection(config).flatMap { conn =>
@@ -144,11 +156,13 @@ object UsingMonads {
   import cats.instances.either._
   object EitherHttpService extends HttpService[LoadingOr] {
     override def getConnection(cfg: Map[String, String]): LoadingOr[Connection] = {
-      val conn = for {
+      lazy val conn = for {
         h <- cfg.get("host")
         p <- cfg.get("port")
       } yield Connection(h, p)
-      conn.get.pure[LoadingOr]
+
+      val eitherOfOption: OptionT[LoadingOr, Connection] = OptionT.fromOption[LoadingOr](conn)
+      eitherOfOption.getOrElseF(Left("Failed HttpService[LoadingOr]..."))
     }
 
     override def issueRequest(connection: Connection, payload: String): LoadingOr[String] =
@@ -173,6 +187,21 @@ object UsingMonads {
       if (payload.length >= 20) Left(new RuntimeException("Payload is too large"))
       else Right(s"Request ($payload) was accepted")
   }
+
+  val tryOfResponse: Try[String] = for {
+    conn <- TryHttpService.getConnection(config)
+    response <- TryHttpService.issueRequest(conn, "Hello Try ;)")
+  } yield response
+
+  val futureOfResponse: Future[String] = for {
+    conn <- FutureHttpService.getConnection(config)
+    response <- FutureHttpService.issueRequest(conn, "Hello Future ) ")
+  } yield response
+
+  val loadingOrErrorMsg: LoadingOr[String] = for {
+    conn <- EitherHttpService.getConnection(config)
+    response <- EitherHttpService.issueRequest(conn, "Hello LoadingOr..")
+  } yield response
 
   val errorOrResponse: ErrorOr[String] = for {
     conn <- AggressiveHttpService.getConnection(config)
