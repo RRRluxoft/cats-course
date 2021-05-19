@@ -34,4 +34,5 @@ object WeakerMonads {
   def main(args: Array[String]): Unit = {
 
   }
+
 }
