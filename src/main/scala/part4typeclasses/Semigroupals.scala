@@ -29,11 +29,12 @@ object Semigroupals {
   import cats.Monad
   import cats.syntax.functor._ // for map
   import cats.syntax.flatMap._ // for flatMap
-  def productWithMonads[F[_], A, B](fa: F[A], fb: F[B])(implicit monad: Monad[F]): F[(A, B)] =
-    for {
-      a <- fa
-      b <- fb
-    } yield (a, b)
+  def productWithMonads[F[_] : Monad, A, B](fa: F[A], fb: F[B])/*(implicit monad: Monad[F])*/: F[(A, B)] =
+//    for {
+//      a <- fa
+//      b <- fb
+//    } yield (a, b)
+  fa.flatMap(a => fb.map(b => (a, b)))
 
   // MONADS EXTEND SEMIGROUPALS
 
@@ -62,6 +63,7 @@ object Semigroupals {
   }
 
   def main(args: Array[String]): Unit = {
+    println(aTupledList)
     println(invalidsCombination)
     println(eitherCombination)
     println(zipListSemigroupal.product(List(1, 2), List("a", "b")))
