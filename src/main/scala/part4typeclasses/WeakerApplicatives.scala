@@ -37,5 +37,6 @@ object WeakerApplicatives {
 
   def main(args: Array[String]): Unit = {
 
+
   }
 }
